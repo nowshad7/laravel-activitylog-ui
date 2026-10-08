@@ -15,38 +15,44 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /** @var array<string, string|array<int, string>> */
+    protected array $indexes = [
+        'alu_event_index' => 'event',
+        'alu_created_at_index' => 'created_at',
+        'alu_log_name_created_at_index' => ['log_name', 'created_at'],
+    ];
+
     public function up(): void
     {
-        $table = $this->table();
-        $existing = $this->indexNames($table);
+        $existing = $this->indexNames($this->table());
 
-        Schema::table($table, function (Blueprint $blueprint) use ($existing) {
-            if (! in_array('alu_event_index', $existing, true)) {
-                $blueprint->index('event', 'alu_event_index');
+        foreach ($this->indexes as $name => $columns) {
+            if (in_array($name, $existing, true)) {
+                continue;
             }
 
-            if (! in_array('alu_created_at_index', $existing, true)) {
-                $blueprint->index('created_at', 'alu_created_at_index');
+            try {
+                Schema::table($this->table(), function (Blueprint $blueprint) use ($columns, $name) {
+                    $blueprint->index($columns, $name);
+                });
+            } catch (\Throwable $e) {
+                // Index already exists on a driver that does not expose its
+                // index list for pre-checking — safe to ignore.
             }
-
-            if (! in_array('alu_log_name_created_at_index', $existing, true)) {
-                $blueprint->index(['log_name', 'created_at'], 'alu_log_name_created_at_index');
-            }
-        });
+        }
     }
 
     public function down(): void
     {
-        $table = $this->table();
-        $existing = $this->indexNames($table);
-
-        Schema::table($table, function (Blueprint $blueprint) use ($existing) {
-            foreach (['alu_event_index', 'alu_created_at_index', 'alu_log_name_created_at_index'] as $name) {
-                if (in_array($name, $existing, true)) {
+        foreach (array_keys($this->indexes) as $name) {
+            try {
+                Schema::table($this->table(), function (Blueprint $blueprint) use ($name) {
                     $blueprint->dropIndex($name);
-                }
+                });
+            } catch (\Throwable $e) {
+                // Index was not present — nothing to drop.
             }
-        });
+        }
     }
 
     protected function table(): string
@@ -55,8 +61,8 @@ return new class extends Migration
     }
 
     /**
-     * Best-effort list of existing index names, so the migration is idempotent
-     * where the database driver exposes them.
+     * Best-effort list of existing index names, so the migration can skip
+     * indexes it already created where the driver exposes them (Laravel 11+).
      *
      * @return array<int, string>
      */
@@ -69,7 +75,7 @@ return new class extends Migration
                 return array_map(fn ($index) => $index['name'], $builder->getIndexes($table));
             }
         } catch (\Throwable $e) {
-            // Fall through: on older drivers we simply add the indexes.
+            // Fall through: the try/catch around each add keeps up() idempotent.
         }
 
         return [];
