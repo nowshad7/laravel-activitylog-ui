@@ -6,6 +6,9 @@
         'event' => 'Event', 'causer_type' => 'Causer type', 'causer_id' => 'Causer ID',
         'date_from' => 'From', 'date_to' => 'To', 'batch_uuid' => 'Batch',
     ];
+    // The page that filtering targets; analytics passes its own route so filters stay on that tab.
+    $filterRoute = $filterRoute ?? 'activitylog-ui.index';
+    $keepView = ($viewMode ?? 'table') === 'timeline' ? ['view' => 'timeline'] : [];
 @endphp
 
 <div x-data="{ open: {{ $filters->count() ? 'true' : 'false' }} || window.innerWidth >= 1024 }"
@@ -18,7 +21,7 @@
             </span>
 
             @foreach ($filters->all() as $key => $value)
-                <a href="{{ route('activitylog-ui.index', array_merge(\Illuminate\Support\Arr::except($filters->all(), [$key]), ['per_page' => $perPage])) }}"
+                <a href="{{ route($filterRoute, array_merge(\Illuminate\Support\Arr::except($filters->all(), [$key]), ['per_page' => $perPage], $keepView)) }}"
                    class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-rose-500/50 dark:hover:bg-rose-500/10"
                    title="Remove filter">
                     <span class="font-medium">{{ $filterLabels[$key] ?? $key }}:</span>
@@ -37,12 +40,31 @@
         </button>
     </div>
 
-    <form x-show="open" x-cloak method="GET" action="{{ route('activitylog-ui.index') }}" class="p-4">
+    <form x-show="open" x-cloak method="GET" action="{{ route($filterRoute) }}" class="p-4">
         @foreach (['causer_type', 'batch_uuid'] as $hidden)
             @if ($filters->get($hidden))
                 <input type="hidden" name="{{ $hidden }}" value="{{ $filters->get($hidden) }}">
             @endif
         @endforeach
+        @if (! empty($keepView))
+            <input type="hidden" name="view" value="timeline">
+        @endif
+
+        @if (! empty($datePresets))
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+                <span class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ __('activitylog-ui::messages.filters.presets') }}</span>
+                @foreach ($datePresets as $preset)
+                    <a href="{{ route($filterRoute, array_merge($filters->all(), ['date_from' => $preset['from'], 'date_to' => $preset['to'], 'per_page' => $perPage], $keepView)) }}"
+                       @class([
+                           'rounded-full border px-3 py-1 text-xs font-medium transition',
+                           'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500/50 dark:bg-indigo-500/10 dark:text-indigo-300' => $preset['active'],
+                           'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500/50' => ! $preset['active'],
+                       ])>
+                        {{ $preset['label'] }}
+                    </a>
+                @endforeach
+            </div>
+        @endif
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="sm:col-span-2">
@@ -120,7 +142,7 @@
 
             <div class="flex items-center gap-2">
                 @if ($filters->count())
-                    <a href="{{ route('activitylog-ui.index') }}"
+                    <a href="{{ route($filterRoute, $keepView) }}"
                        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                         Reset
                     </a>

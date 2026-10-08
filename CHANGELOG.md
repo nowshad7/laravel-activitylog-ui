@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
+
+### Added
+- **Analytics dashboard** (`features.analytics`): activity over time, breakdown by event and log name, and top causers/subjects, rendered with Chart.js. Filter-aware and cached per filter set (`analytics.cache_ttl`); date grouping is portable across MySQL, PostgreSQL, SQLite and SQL Server.
+- **Timeline view** (`features.timeline`): a day-grouped vertical timeline toggled from the tab bar.
+- **Saved views** (`features.saved_views`): save the current filter set and recall it later, scoped per user. Ships a publishable migration and degrades gracefully until it is run.
+- **Export formats**: JSON, Excel (XLSX) and PDF in addition to CSV. Excel falls back to CSV and PDF falls back to JSON when the optional `maatwebsite/excel` / `barryvdh/laravel-dompdf` packages are absent.
+- **Quick date presets** (Today, Yesterday, Last 7/30 days, This month) above the filters.
+- **Access allow-lists** (`access.allowed_users`, `access.allowed_roles`) layered on top of the gate.
+- **Read-only JSON API** (`features.api`) over the same filters, for SPAs, dashboards and automated agents.
+- **Live counts** (`features.live_counts`): background-refresh the statistics total.
+- **Localization**: publishable language files (`activitylog-ui-lang`) and a translatable UI.
+- **Performance index migration** (publishable): indexes on `event`, `created_at` and `(log_name, created_at)`.
+- Expanded test suite (80+ tests) covering every new feature.
+
+### Changed
+- Routes for optional features are always registered and gated inside their controllers, so feature flags take effect at runtime.
+- Shared activity lookups extracted into a `ResolvesActivities` trait; export logic extracted into an `ActivityExporter`.
+
+## 1.1.x
 
 ### Fixed
 - The causer was always shown as "System": `causer_type` was not selected, so the relation never loaded.

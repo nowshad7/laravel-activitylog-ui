@@ -42,6 +42,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Access control (allow-lists)
+    |--------------------------------------------------------------------------
+    |
+    | Optional allow-lists layered on top of the gate, for teams that do not
+    | want to write a gate. When a list is non-empty it is enforced; when it is
+    | empty it is ignored. "allowed_users" matches the authenticated user's id
+    | or email. "allowed_roles" matches a role name via a hasRole()/getRoleNames()
+    | method or a "roles" relation (e.g. spatie/laravel-permission).
+    |
+    */
+
+    'access' => [
+        'allowed_users' => [],
+        'allowed_roles' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Feature toggles
+    |--------------------------------------------------------------------------
+    */
+
+    'features' => [
+        'analytics' => true,
+        'timeline' => true,
+        'saved_views' => true,
+        'live_counts' => false,
+        'api' => false,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */
@@ -86,17 +118,65 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | CSV export
+    | Analytics dashboard
     |--------------------------------------------------------------------------
     |
-    | Allows exporting the currently filtered logs as CSV. "export_limit"
-    | caps the number of rows written to protect against huge exports.
+    | "cache_ttl" is how long (in seconds) the computed analytics payload is
+    | cached for a given filter set. Set to 0 to disable caching.
+    | "range_days" is the default window of the "activity over time" chart.
+    |
+    */
+
+    'analytics' => [
+        'cache_ttl' => 3600,
+        'range_days' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live counts
+    |--------------------------------------------------------------------------
+    |
+    | When features.live_counts is enabled, the statistics total refreshes in
+    | the background every "poll_interval" seconds without a full page reload.
+    |
+    */
+
+    'live_counts' => [
+        'poll_interval' => 15,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Saved views
+    |--------------------------------------------------------------------------
+    |
+    | Lets a user save the current filter set and recall it later. Requires the
+    | published migration to be run. Views are scoped to the authenticated user.
+    |
+    */
+
+    'saved_views' => [
+        'table' => 'activitylog_ui_saved_views',
+        'max_per_user' => 50,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Export
+    |--------------------------------------------------------------------------
+    |
+    | "formats" lists the export formats offered in the UI. CSV and JSON work
+    | out of the box. XLSX needs maatwebsite/excel and falls back to CSV when
+    | absent; PDF needs barryvdh/laravel-dompdf and falls back to JSON.
+    | "limit" caps the number of rows written to protect against huge exports.
     |
     */
 
     'export' => [
         'enabled' => true,
         'limit' => 10000,
+        'formats' => ['csv', 'json', 'xlsx', 'pdf'],
     ],
 
 ];
