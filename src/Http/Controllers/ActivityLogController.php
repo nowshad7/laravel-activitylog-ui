@@ -2,17 +2,21 @@
 
 namespace Nsd7\LaravelActivitylogUi\Http\Controllers;
 
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Collection;
 use Nsd7\LaravelActivitylogUi\Filters\ActivityLogFilters;
+use Nsd7\LaravelActivitylogUi\Support\ActivityExporter;
 use Nsd7\LaravelActivitylogUi\Support\ActivityPresenter;
-use Spatie\Activitylog\ActivitylogServiceProvider;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Nsd7\LaravelActivitylogUi\Support\DatePresets;
+use Nsd7\LaravelActivitylogUi\Support\ResolvesActivities;
+use Nsd7\LaravelActivitylogUi\Support\SavedViewRepository;
+use Symfony\Component\HttpFoundation\Response;
 
 class ActivityLogController extends Controller
 {
+    use ResolvesActivities;
+
     public function index(Request $request)
     {
         $filters = ActivityLogFilters::fromRequest($request);
@@ -27,12 +31,15 @@ class ActivityLogController extends Controller
         return view('activitylog-ui::index', [
             'logs' => $logs,
             'filters' => $filters,
+            'viewMode' => $this->viewMode($request),
             'stats' => config('activitylog-ui.show_stats', true) ? $this->stats($filters) : null,
             'models' => $this->subjectTypes(),
             'events' => $this->distinctValues('event'),
             'logNames' => $this->distinctValues('log_name'),
             'perPage' => $perPage,
             'perPageOptions' => $this->perPageOptions(),
+            'datePresets' => DatePresets::forFilters($filters),
+            'savedViews' => SavedViewRepository::forUser($request->user()),
         ]);
     }
 
@@ -60,59 +67,52 @@ class ActivityLogController extends Controller
         ]);
     }
 
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): Response
     {
         abort_unless(config('activitylog-ui.export.enabled', true), 404);
 
         $filters = ActivityLogFilters::fromRequest($request);
-        $limit = max(1, (int) config('activitylog-ui.export.limit', 10000));
-        $dateFormat = config('activitylog-ui.date_format', 'Y-m-d H:i:s');
 
-        $rows = $filters->apply($this->query())
-            ->with('causer')
-            ->lazyByIdDesc(500)
-            ->take($limit);
+        $exporter = new ActivityExporter(
+            $filters->apply($this->query()),
+            (int) config('activitylog-ui.export.limit', 10000),
+            config('activitylog-ui.date_format', 'Y-m-d H:i:s')
+        );
 
-        return response()->streamDownload(function () use ($rows, $dateFormat) {
-            $handle = fopen('php://output', 'w');
+        return $exporter->download((string) $request->query('format', 'csv'));
+    }
 
-            fputcsv($handle, [
-                'id', 'log_name', 'description', 'event', 'subject_type', 'subject_id',
-                'causer_type', 'causer_id', 'causer', 'properties', 'batch_uuid', 'created_at',
-            ]);
+    /**
+     * Lightweight JSON total for the live-count poller.
+     */
+    public function count(Request $request): JsonResponse
+    {
+        abort_unless(config('activitylog-ui.features.live_counts', false), 404);
 
-            foreach ($rows as $activity) {
-                fputcsv($handle, array_map([$this, 'csvSafe'], [
-                    $activity->id,
-                    $activity->log_name,
-                    $activity->description,
-                    $activity->event,
-                    $activity->subject_type,
-                    $activity->subject_id,
-                    $activity->causer_type,
-                    $activity->causer_id,
-                    ActivityPresenter::causerName($activity),
-                    json_encode($activity->properties, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                    $activity->batch_uuid,
-                    optional($activity->created_at)->format($dateFormat),
-                ]));
-            }
+        $filters = ActivityLogFilters::fromRequest($request);
 
-            fclose($handle);
-        }, 'activity-log-' . now()->format('Y-m-d-His') . '.csv', [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+        return response()->json([
+            'total' => $filters->apply($this->query())->toBase()->count(),
         ]);
     }
 
-    protected function query(): Builder
+    protected function viewMode(Request $request): string
     {
-        $model = ActivitylogServiceProvider::determineActivityModel();
+        $mode = (string) $request->query('view', 'table');
 
-        return $model::query();
+        $allowed = ['table'];
+
+        if (config('activitylog-ui.features.timeline', true)) {
+            $allowed[] = 'timeline';
+        }
+
+        return in_array($mode, $allowed, true) ? $mode : 'table';
     }
 
     /**
      * Event counts for the currently filtered result set.
+     *
+     * @return array{total: int, created: int, updated: int, deleted: int}
      */
     protected function stats(ActivityLogFilters $filters): array
     {
@@ -129,64 +129,5 @@ class ActivityLogController extends Controller
             'updated' => $counts->get('updated', 0),
             'deleted' => $counts->get('deleted', 0),
         ];
-    }
-
-    /**
-     * Distinct subject types as value (FQCN) => label (basename) pairs.
-     * The full class name is shown when two models share a basename.
-     */
-    protected function subjectTypes(): array
-    {
-        $types = $this->distinctValues('subject_type');
-        $basenames = array_count_values(array_map('class_basename', $types));
-
-        return collect($types)
-            ->mapWithKeys(function ($type) use ($basenames) {
-                $basename = class_basename($type);
-
-                return [$type => $basenames[$basename] > 1 ? $type : $basename];
-            })
-            ->sort()
-            ->all();
-    }
-
-    protected function distinctValues(string $column): array
-    {
-        return $this->query()
-            ->toBase()
-            ->whereNotNull($column)
-            ->distinct()
-            ->orderBy($column)
-            ->pluck($column)
-            ->map(fn ($value) => (string) $value)
-            ->all();
-    }
-
-    protected function perPageOptions(): array
-    {
-        return array_values(array_filter(
-            array_map('intval', (array) config('activitylog-ui.per_page_options', [10, 15, 25, 50, 100])),
-            fn ($option) => $option > 0
-        ));
-    }
-
-    protected function perPage(Request $request): int
-    {
-        $default = (int) config('activitylog-ui.per_page', 15);
-        $requested = (int) $request->query('per_page', $default);
-
-        return in_array($requested, $this->perPageOptions(), true) ? $requested : $default;
-    }
-
-    /**
-     * Prevent CSV/formula injection when the export is opened in a spreadsheet.
-     */
-    public function csvSafe($value)
-    {
-        if (is_string($value) && $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-            return "'" . $value;
-        }
-
-        return $value;
     }
 }

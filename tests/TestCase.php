@@ -57,6 +57,15 @@ abstract class TestCase extends Orchestra
         });
     }
 
+    /**
+     * Create the saved-views table from the published migration stub.
+     */
+    protected function createSavedViewsTable(): void
+    {
+        $migration = require __DIR__ . '/../database/migrations/create_activitylog_ui_saved_views_table.php.stub';
+        $migration->up();
+    }
+
     protected function defineRoutes($router)
     {
         // The "auth" middleware redirects guests to a route named "login".
