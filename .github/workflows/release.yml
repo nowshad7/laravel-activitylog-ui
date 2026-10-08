@@ -1,0 +1,47 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to create/release (e.g. v1.2.0)
+        required: true
+      name:
+        description: Release title (defaults to the tag)
+        required: false
+      target:
+        description: Target commitish for the tag
+        required: false
+        default: main
+      body:
+        description: Release notes (Markdown). Falls back to auto-generated notes when empty.
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      IN_TAG: ${{ github.event.inputs.tag }}
+      IN_NAME: ${{ github.event.inputs.name }}
+      IN_TARGET: ${{ github.event.inputs.target }}
+      IN_BODY: ${{ github.event.inputs.body }}
+    steps:
+      - name: Create tag and release
+        run: |
+          set -euo pipefail
+          NAME="${IN_NAME:-$IN_TAG}"
+          if gh release view "$IN_TAG" >/dev/null 2>&1; then
+            echo "Release $IN_TAG already exists; nothing to do."
+            exit 0
+          fi
+          if [ -n "${IN_BODY:-}" ]; then
+            printf '%s' "$IN_BODY" > notes.md
+            gh release create "$IN_TAG" --target "$IN_TARGET" --title "$NAME" --notes-file notes.md
+          else
+            gh release create "$IN_TAG" --target "$IN_TARGET" --title "$NAME" --generate-notes
+          fi
