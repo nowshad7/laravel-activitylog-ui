@@ -1,10 +1,11 @@
 # Authorization & access control
 
-Access is checked in three layers. All configured layers must pass.
+Access is checked in three layers. **All configured layers must pass.**
 
 ## 1. Route middleware
 
-`route.middleware` (default `['web', 'auth']`) runs first. Guests hitting the dashboard are redirected to `login`.
+`route.middleware` (default `['web', 'auth']`) runs first. Guests hitting the dashboard are
+redirected to `login`.
 
 ## 2. Gate
 
@@ -29,6 +30,8 @@ Optional lists, each enforced only when non-empty:
 ],
 ```
 
-Roles are resolved via `hasRole()`, `getRoleNames()` (e.g. spatie/laravel-permission), or a `roles` relation/attribute exposing role names.
+Roles are resolved via `hasRole()`, `getRoleNames()` (e.g. spatie/laravel-permission), or a
+`roles` relation/attribute exposing role names.
 
-The defaults (`[]`) change nothing, so existing setups keep working.
+The defaults (`[]`) change nothing, so existing setups keep working. Responses also carry
+`noindex` headers so the dashboard never leaks into search engines.
