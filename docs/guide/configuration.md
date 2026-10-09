@@ -1,12 +1,13 @@
 # Configuration
 
-Publish the config with `php artisan vendor:publish --tag=activitylog-ui-config`. It lands at `config/activitylog-ui.php`.
+Publish the config with `php artisan vendor:publish --tag=activitylog-ui-config`. It lands
+at `config/activitylog-ui.php`.
 
 ## Keys
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `true` | Master switch (env `ACTIVITYLOG_UI_ENABLED`). |
+| `enabled` | `true` | Master switch (env `ACTIVITYLOG_UI_ENABLED`). When off, no routes are registered. |
 | `route.prefix` | `admin/activity-log` | URL prefix (env `ACTIVITYLOG_UI_PATH`). |
 | `route.domain` | `null` | Optional domain (env `ACTIVITYLOG_UI_DOMAIN`). |
 | `route.middleware` | `['web', 'auth']` | Middleware applied to all routes. |
@@ -30,3 +31,9 @@ Publish the config with `php artisan vendor:publish --tag=activitylog-ui-config`
 | `export.enabled` | `true` | Allow exports. |
 | `export.limit` | `10000` | Max rows per export. |
 | `export.formats` | `['csv','json','xlsx','pdf']` | Formats offered in the UI. |
+
+## Custom activity model / connection
+
+The UI resolves the activity model through Spatie, so a custom model or database connection
+configured in `config/activitylog.php` (`activity_model`) is picked up automatically —
+including a custom table name.
