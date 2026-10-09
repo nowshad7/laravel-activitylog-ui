@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+### Added
+- **Documentation site** (VitePress) under `docs/`, published to GitHub Pages at https://nowshad7.github.io/laravel-activitylog-ui/ — home page plus guides for getting started, configuration, the dashboard, analytics, timeline, saved views, exports, authorization, the JSON API and localization. Docs-only release; no package code changed.
+
 ## 1.2.0
 
 ### Added
